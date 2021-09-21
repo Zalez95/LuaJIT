@@ -417,7 +417,7 @@ add_custom_target(lj_gen_folddef ALL
   DEPENDS ${LJ_FOLDDEF_PATH}
 )
 
-set(luajit_sources
+set(LUAJIT_SOURCES
     lib_aux.c
     lib_base.c
     lib_bit.c
@@ -488,24 +488,30 @@ set(luajit_sources
     ${LJ_VM_NAME})
 
 if(LUAJIT_USE_GDBJIT)
-  list(APPEND luajit_sources lj_gdbjit.c)
+  list(APPEND LUAJIT_SOURCES lj_gdbjit.c)
 endif()
 
 if(WIN32 AND LUAJIT_FORCE_UTF8_FOPEN)
-  list(APPEND luajit_sources lj_fopen.c)
+  list(APPEND LUAJIT_SOURCES lj_fopen.c)
 endif()
 
+file(GLOB LUAJIT_HEADERS "*.h")
+
 # Build the luajit static library
-add_library(libluajit ${luajit_sources})
+add_library(libluajit ${LUAJIT_SOURCES})
+target_include_directories(libluajit PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+  $<INSTALL_INTERFACE:include>
+)
 set_target_properties(libluajit PROPERTIES OUTPUT_NAME luajit)
+
 add_dependencies(libluajit
   buildvm_arch_h
   buildvm
   lj_gen_headers
   lj_gen_folddef)
-target_include_directories(libluajit PRIVATE
-  ${CMAKE_CURRENT_BINARY_DIR}
-  ${CMAKE_CURRENT_SOURCE_DIR})
+
 if (BUILD_SHARED_LIBS)
   if(WIN32 OR MINGW)
     set(LJ_DEFINITIONS ${LJ_DEFINITIONS} -DLUA_BUILD_AS_DLL)
@@ -554,10 +560,23 @@ if ("${CMAKE_SYSTEM_NAME}" MATCHES "(Open|Free|Net)BSD")
 endif()
 target_compile_definitions(luajit PRIVATE ${LJ_DEFINITIONS})
 
-set(luajit_headers lauxlib.h lua.h luaconf.h luajit.h lualib.h)
-install(FILES ${luajit_headers} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/luajit)
-install(TARGETS libluajit
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
+install(TARGETS libluajit luajit EXPORT LuaJITTargets
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib
+  RUNTIME DESTINATION bin
+  INCLUDES DESTINATION include
+)
+install(EXPORT LuaJITTargets
+  FILE LuaJITTargets.cmake
+  NAMESPACE luajit::
+  DESTINATION lib/cmake/LuaJIT
+)
 
-install(TARGETS luajit DESTINATION "${CMAKE_INSTALL_BINDIR}")
+include(CMakePackageConfigHelpers)
+write_basic_package_version_file("LuaJITConfigVersion.cmake"
+  VERSION ${LUAJIT_VERSION}
+  COMPATIBILITY SameMajorVersion
+)
+install(FILES "LuaJITConfig.cmake" "LuaJITConfigVersion.cmake"
+  DESTINATION lib/cmake/LuaJIT
+)
